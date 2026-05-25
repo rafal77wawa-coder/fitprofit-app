@@ -93,9 +93,13 @@ async function loadConfig(){
     });
     if(SCORE.foot.limit) LIM = SCORE.foot.limit;
     if(cfg.eko && cfg.eko.commute_bonus!=null) SCORE.commute = Number(cfg.eko.commute_bonus);
-    if(cfg.charity && Number(cfg.charity.target_amount)>0){
-      CHARITY_GOAL = Number(cfg.charity.target_amount);
+    if(cfg.charity){
+      if(Number(cfg.charity.target_amount)>0) CHARITY_GOAL = Number(cfg.charity.target_amount);
+      if(cfg.charity.name)        CHARITY.name = cfg.charity.name;
+      if(cfg.charity.description) CHARITY.desc = cfg.charity.description;
+      if(cfg.charity.image_url)   CHARITY.img  = cfg.charity.image_url;
     }
+    if(cfg.branding && cfg.branding.logo_url) BRANDING_LOGO = cfg.branding.logo_url;
     if(Array.isArray(cfg.rewards) && cfg.rewards.length){
       REW = cfg.rewards.map(function(r,i){
         var sk = REW_SKINS[i % REW_SKINS.length];
@@ -265,6 +269,12 @@ let STEP_GOAL  = 10000;       /* dzienny cel — nadpisywany konfiguracją z pan
 const STEP_BONUS = 7500;        /* próg bonusu +10 pkt */
 /* Cel zbiórki charytatywnej i strony informacyjne — nadpisywane konfiguracją z panelu. */
 let CHARITY_GOAL = 19000;
+let CHARITY = {
+  name: "Schronisko na Paluchu",
+  desc: "Przekaż swoje punkty na wspólny cel charytatywny. Gdy firma osiągnie cel, VanityStyle przekaże darowiznę.",
+  img: "",
+};
+let BRANDING_LOGO = "";
 let INFO_PAGES = [];
 /* Tygodniowe dane kroków: P W Ś C P S N (bieżący tydzień, N = dzisiaj) */
 const WEEK_LABELS = ["Pn","Wt","Śr","Cz","Pt","So","Nd"];
@@ -2147,9 +2157,16 @@ function RedeemModal(p){
   );
 }
 
-/* ─── LOGO ORGANIZACJI (zastępcze — wstaw prawdziwe logo schroniska) ─── */
+/* ─── LOGO CELU CHARYTATYWNEGO ─── pokazuje obraz z panelu, w razie braku — grafikę zastępczą */
 function ShelterLogo(p){
   var s=p.size||44;
+  var url=CHARITY.img||BRANDING_LOGO;
+  if(url){
+    return (
+      <img src={url} alt={CHARITY.name}
+        style={{width:s,height:s,borderRadius:Math.round(s*0.28),objectFit:"cover",flexShrink:0,background:"#fff",boxShadow:"0 3px 10px rgba(0,0,0,0.18)"}}/>
+    );
+  }
   return (
     <div style={{width:s,height:s,borderRadius:Math.round(s*0.28),background:"linear-gradient(135deg,#F7A93B,#E07B1A)",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 3px 10px rgba(224,123,26,0.4)"}}>
       <svg width={Math.round(s*0.58)} height={Math.round(s*0.58)} viewBox="0 0 24 24" fill="#fff">
@@ -2193,7 +2210,7 @@ function DonateModal(p){
         <div style={{display:"flex",alignItems:"center",gap:12,padding:"4px 24px 12px"}}>
           <ShelterLogo size={48}/>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontSize:17,fontWeight:800,color:T.text}}>Schronisko na Paluchu</div>
+            <div style={{fontSize:17,fontWeight:800,color:T.text}}>{CHARITY.name}</div>
             <div style={{fontSize:12,color:T.grey,marginTop:2}}>Wyzwanie firmowe · cel {GOAL.toLocaleString("pl")} pkt</div>
           </div>
         </div>
@@ -2202,7 +2219,7 @@ function DonateModal(p){
         {stage==="input"&&(
           <div style={{padding:"18px 24px 38px"}}>
             <div style={{fontSize:12,color:T.grey,lineHeight:1.55,marginBottom:14}}>
-              Przekaż dowolną liczbę swoich punktów na pomoc zwierzętom ze schroniska. Punkty zasilają wspólną pulę firmy.
+              {CHARITY.desc}
             </div>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
               <span style={{fontSize:12,color:T.grey}}>Zebrano firmowo</span>
@@ -2249,7 +2266,7 @@ function DonateModal(p){
             <div style={{fontSize:46,marginBottom:8}}>🐾</div>
             <div style={{fontSize:21,fontWeight:800,color:T.text,letterSpacing:-0.3}}>Dziękujemy!</div>
             <div style={{fontSize:13,color:T.grey,marginTop:6,lineHeight:1.55}}>
-              Przekazano <b style={{color:T.navy}}>{sent.toLocaleString("pl")} pkt</b> na Schronisko na Paluchu. Twoje punkty zasiliły wspólną pulę firmy.
+              Przekazano <b style={{color:T.navy}}>{sent.toLocaleString("pl")} pkt</b> na {CHARITY.name}. Twoje punkty zasiliły wspólną pulę firmy.
             </div>
             <PrimaryBtn dark onClick={p.onClose} style={{marginTop:20}}>Gotowe</PrimaryBtn>
           </div>
@@ -2292,7 +2309,7 @@ function Nagrody(p){
           <div style={{display:"flex",alignItems:"center",gap:12,padding:"16px 18px 12px"}}>
             <ShelterLogo size={46}/>
             <div style={{flex:1,minWidth:0}}>
-              <div style={{fontSize:15,fontWeight:800,color:T.text}}>Schronisko na Paluchu</div>
+              <div style={{fontSize:15,fontWeight:800,color:T.text}}>{CHARITY.name}</div>
               <div style={{fontSize:11,color:T.grey,marginTop:2}}>Zbiórka punktów · {co.name} · pozostało 8 dni</div>
             </div>
             <div style={{fontSize:22,fontWeight:800,color:T.navy}}>{cpct}%</div>
@@ -2306,7 +2323,7 @@ function Nagrody(p){
               <span style={{fontSize:11,color:T.grey}}>cel zbiórki</span>
             </div>
             <div style={{fontSize:12,color:T.grey,lineHeight:1.55,marginBottom:14}}>
-              Przekaż swoje punkty na pomoc zwierzętom. Gdy firma zbierze {tot.toLocaleString("pl")} pkt, VanityStyle przekaże darowiznę schronisku.
+              {CHARITY.desc}
             </div>
             <PrimaryBtn dark onClick={p.onOpenDonate}>
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
@@ -3466,8 +3483,8 @@ function Onboarding(p){
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:14}}>
                 <ShelterLogo size={42}/>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:800,color:T.text}}>Schronisko na Paluchu</div>
-                  <div style={{fontSize:11,color:T.grey,marginTop:1}}>Cel zbiórki: 19 000 pkt</div>
+                  <div style={{fontSize:14,fontWeight:800,color:T.text}}>{CHARITY.name}</div>
+                  <div style={{fontSize:11,color:T.grey,marginTop:1}}>Cel zbiórki: {CHARITY_GOAL.toLocaleString("pl")} pkt</div>
                 </div>
               </div>
               <div style={{background:T.greyBg,borderRadius:99,height:7,overflow:"hidden"}}>
