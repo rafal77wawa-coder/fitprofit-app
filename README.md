@@ -1,7 +1,7 @@
 # FitProfit — VanityStyle Sp. z o.o.
 
 Mobilna aplikacja React do zarządzania kartami sportowymi FitProfit/FitSport.  
-Klon Activy z pełnymi zasadami punktowania, redesign w stylu **VanityStyle NEXT**.
+pełnymi zasadami punktowania, redesign w stylu **VanityStyle NEXT**.
 
 ---
 
