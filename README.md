@@ -1,4 +1,4 @@
-# FitProfit — VanityStyle Sp. z o.o.
+# Grywalizacja — VanityStyle Sp. z o.o.
 
 Mobilna aplikacja React do zarządzania kartami sportowymi FitProfit/FitSport.  
 pełnymi zasadami punktowania, redesign w stylu **VanityStyle NEXT**.
