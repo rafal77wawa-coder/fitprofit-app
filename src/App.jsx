@@ -93,6 +93,27 @@ async function loadConfig(){
     });
     if(SCORE.foot.limit) LIM = SCORE.foot.limit;
     if(cfg.eko && cfg.eko.commute_bonus!=null) SCORE.commute = Number(cfg.eko.commute_bonus);
+    if(cfg.charity && Number(cfg.charity.target_amount)>0){
+      CHARITY_GOAL = Number(cfg.charity.target_amount);
+    }
+    if(Array.isArray(cfg.rewards) && cfg.rewards.length){
+      REW = cfg.rewards.map(function(r,i){
+        var sk = REW_SKINS[i % REW_SKINS.length];
+        return {
+          icon: r.icon || "🎁",
+          name: r.name || "",
+          sub:  r.description || "",
+          cost: Number(r.cost) || 0,
+          col:  sk.col,
+          g:    sk.g,
+        };
+      });
+    }
+    if(Array.isArray(cfg.infoPages)){
+      INFO_PAGES = cfg.infoPages.filter(function(pg){
+        return pg && String(pg.content||"").trim();
+      });
+    }
     return true;
   }catch(e){
     return false;
@@ -212,7 +233,16 @@ const FAC=[
   {id:"spa",  name:"Spa & Wellness",   type:"SPA / Sauna",icon:"💆",pts:12,col:"#AD1457"},
   {id:"vs",   name:"Strefa VS Online", type:"Online",     icon:"📱",pts:8, col:T.grey},
 ];
-const REW=[
+/* Skórki wizualne nagród (kolor + gradient) — przydzielane po indeksie,
+   bo API katalogu nagród nie przechowuje danych wyglądu. */
+const REW_SKINS=[
+  {col:"#6A1B9A",g:"linear-gradient(145deg,#3A1060,#1A0830)"},
+  {col:"#0C5093",g:"linear-gradient(145deg,#102030,#081820)"},
+  {col:"#2E7D32",g:"linear-gradient(145deg,#082818,#041810)"},
+  {col:"#2C3468",g:"linear-gradient(145deg,#201028,#140818)"},
+];
+/* Katalog nagród — wartości domyślne; nadpisywane konfiguracją z panelu. */
+let REW=[
   {icon:"🎫",name:"Kupon QlturaProfit",         sub:"Dostęp do wydarzeń kulturalnych",  cost:800,  col:"#6A1B9A",g:"linear-gradient(145deg,#3A1060,#1A0830)"},
   {icon:"🎁",name:"Voucher -50% Prezent Marzeń",sub:"Na jeden prezent z katalogu",      cost:400,  col:T.blue,   g:"linear-gradient(145deg,#102030,#081820)"},
   {icon:"💊",name:"-40% na DOZ.pl",             sub:"Apteka i zdrowie online",           cost:600,  col:"#2E7D32",g:"linear-gradient(145deg,#082818,#041810)"},
@@ -233,6 +263,9 @@ function newFeedId(){ return ++_feedSeq; }
 /* ── KROKOMIERZ ───────────────────────── */
 let STEP_GOAL  = 10000;       /* dzienny cel — nadpisywany konfiguracją z panelu */
 const STEP_BONUS = 7500;        /* próg bonusu +10 pkt */
+/* Cel zbiórki charytatywnej i strony informacyjne — nadpisywane konfiguracją z panelu. */
+let CHARITY_GOAL = 19000;
+let INFO_PAGES = [];
 /* Tygodniowe dane kroków: P W Ś C P S N (bieżący tydzień, N = dzisiaj) */
 const WEEK_LABELS = ["Pn","Wt","Śr","Cz","Pt","So","Nd"];
 const WEEK_STEPS_SEED = [9240, 11320, 7800, 12100, 8432, 0, 0];
@@ -2132,7 +2165,7 @@ function ShelterLogo(p){
 
 /* ─── MODAL: przekazanie punktów na cel charytatywny ─── */
 function DonateModal(p){
-  var GOAL=19000;
+  var GOAL=CHARITY_GOAL;
   var [stage,setStage]=useState("input");
   var [amt,setAmt]=useState("");
   var [sent,setSent]=useState(0);
@@ -2228,7 +2261,7 @@ function DonateModal(p){
 
 function Nagrody(p){
   var co=COS[MY_CO];
-  var tot=19000;
+  var tot=CHARITY_GOAL;
   var cpct=Math.min(100,Math.round(p.challPts/tot*100));
   var nxt=REW.find(function(r){return r.cost>p.myPts;})||REW[REW.length-1];
   var npct=Math.min(100,Math.round(p.myPts/nxt.cost*100));
@@ -2471,6 +2504,23 @@ function Regulamin(p){
                     </div>
                   );
                 })}
+              </div>
+            </Card>
+          );
+        })}
+
+        {/* Strony informacyjne edytowane w panelu administratora */}
+        {INFO_PAGES.map(function(pg,pi){
+          return (
+            <Card key={"ip"+pi}>
+              <div style={{padding:"14px 16px",borderBottom:"1px solid "+T.border,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{width:28,height:28,borderRadius:8,background:T.blue,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontSize:13}}>ℹ</span>
+                </div>
+                <div style={{fontSize:14,fontWeight:800,color:T.text}}>{pg.title}</div>
+              </div>
+              <div style={{padding:"12px 16px 14px"}}>
+                <p style={{fontSize:12,color:T.grey,lineHeight:1.65,whiteSpace:"pre-wrap"}}>{pg.content}</p>
               </div>
             </Card>
           );
