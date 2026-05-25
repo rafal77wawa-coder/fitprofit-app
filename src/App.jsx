@@ -104,12 +104,14 @@ async function loadConfig(){
       REW = cfg.rewards.map(function(r,i){
         var sk = REW_SKINS[i % REW_SKINS.length];
         return {
-          icon: r.icon || "🎁",
-          name: r.name || "",
-          sub:  r.description || "",
-          cost: Number(r.cost) || 0,
-          col:  sk.col,
-          g:    sk.g,
+          icon:  r.icon || "🎁",
+          name:  r.name || "",
+          sub:   r.description || "",
+          cost:  Number(r.cost) || 0,
+          img:   r.image_url || "",
+          codes: String(r.codes||"").split(/[\r\n,;]+/).map(function(s){return s.trim();}).filter(Boolean),
+          col:   sk.col,
+          g:     sk.g,
         };
       });
     }
@@ -252,6 +254,8 @@ let REW=[
   {icon:"💊",name:"-40% na DOZ.pl",             sub:"Apteka i zdrowie online",           cost:600,  col:"#2E7D32",g:"linear-gradient(145deg,#082818,#041810)"},
   {icon:"🏋",name:"Bon Decathlon 50 zł",        sub:"Na sprzęt sportowy",               cost:1200, col:T.navy,   g:"linear-gradient(145deg,#201028,#140818)"},
 ];
+/* Kody kuponów wydane w tej sesji — zapobiega powtórzeniu kodu z puli temu samemu użytkownikowi. */
+var USED_CODES = {};
 const FEED0=[
   {id:0,user:"Anna W.",  initials:"AW",type:"Rower",     stat:"24.3 km",pts:58,ago:"2h",   cat:"wheel",ok:true,  isNew:false,likes:8, coms:3},
   {id:1,user:"Piotr M.", initials:"PM",type:"Bieg",      stat:"10.1 km",pts:70,ago:"4h",   cat:"foot", ok:true,  isNew:false,likes:12,coms:5},
@@ -2094,8 +2098,10 @@ function RedeemModal(p){
           <div style={{width:36,height:4,background:T.greyLt,borderRadius:2}}/>
         </div>
 
-        <div style={{height:118,background:r.g||T.navy,display:"flex",alignItems:"center",justifyContent:"center"}}>
-          <span style={{fontSize:48}}>{r.icon}</span>
+        <div style={{height:118,background:r.g||T.navy,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden"}}>
+          {r.img
+            ? <img src={r.img} alt={r.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+            : <span style={{fontSize:48}}>{r.icon}</span>}
         </div>
 
         {stage==="confirm"&&(
@@ -2357,7 +2363,9 @@ function Nagrody(p){
               <button key={i} onClick={function(){p.onPickReward(r);}} className="tap"
                 style={{textAlign:"left",padding:0,border:"1px solid "+(can?(r.col||T.navy)+"50":T.border),borderRadius:16,overflow:"hidden",background:T.card,cursor:"pointer",fontFamily:"inherit"}}>
                 <div style={{height:84,background:r.g||T.navy,display:"flex",alignItems:"center",justifyContent:"center",position:"relative",opacity:can?1:0.6}}>
-                  <span style={{fontSize:34}}>{r.icon}</span>
+                  {r.img
+                    ? <img src={r.img} alt={r.name} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    : <span style={{fontSize:34}}>{r.icon}</span>}
                   <div style={{position:"absolute",top:7,right:7,background:can?"rgba(255,255,255,0.22)":"rgba(0,0,0,0.32)",borderRadius:7,padding:"3px 8px"}}>
                     <span style={{fontSize:8,fontWeight:900,color:"#fff",letterSpacing:0.5}}>{can?"DOSTĘPNE":"ZBIERAJ"}</span>
                   </div>
@@ -2385,7 +2393,11 @@ function Nagrody(p){
               {p.redeemed.map(function(rd,i){
                 return (
                   <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",borderBottom:i<p.redeemed.length-1?"1px solid "+T.border:"none"}}>
-                    <div style={{width:38,height:38,borderRadius:11,background:T.navy+"12",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>{rd.icon}</div>
+                    <div style={{width:38,height:38,borderRadius:11,background:T.navy+"12",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,overflow:"hidden"}}>
+                      {rd.img
+                        ? <img src={rd.img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                        : rd.icon}
+                    </div>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:13,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{rd.name}</div>
                       <div style={{fontSize:11,color:T.grey,marginTop:2,fontFamily:"monospace"}}>{rd.code} · {rd.date}</div>
@@ -3459,7 +3471,11 @@ function Onboarding(p){
               return (
                 <Card key={r.name} style={{padding:"12px 14px",marginBottom:10}}>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
-                    <div style={{width:40,height:40,borderRadius:11,background:r.col+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>{r.icon}</div>
+                    <div style={{width:40,height:40,borderRadius:11,background:r.col+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0,overflow:"hidden"}}>
+                      {r.img
+                        ? <img src={r.img} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                        : r.icon}
+                    </div>
                     <div style={{flex:1,minWidth:0}}>
                       <div style={{fontSize:13,fontWeight:700,color:T.text,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{r.name}</div>
                       <div style={{fontSize:11,color:T.grey,marginTop:1}}>{r.sub}</div>
@@ -3646,13 +3662,22 @@ export default function App(){
     showToast(fac.icon,fac.name,fac.pts);go("home");
   }
 
-  /* ── ODBIÓR NAGRODY ── odejmuje punkty z ogólnego stanu, zwraca kod kuponu */
+  /* ── ODBIÓR NAGRODY ── odejmuje punkty, wydaje kod kuponu z puli z panelu */
   function handleRedeem(rew){
     if(myStats.totalPts < rew.cost) return "";
-    var rnd=function(){return Math.random().toString(36).slice(2,6).toUpperCase();};
-    var code="FP-"+rnd()+"-"+rnd();
+    var code;
+    var pool=(rew.codes||[]).filter(function(c){return !USED_CODES[c];});
+    if(pool.length){
+      code=pool[Math.floor(Math.random()*pool.length)];
+      USED_CODES[code]=true;
+    }else if(rew.codes&&rew.codes.length){
+      code=rew.codes[Math.floor(Math.random()*rew.codes.length)];
+    }else{
+      var rnd=function(){return Math.random().toString(36).slice(2,6).toUpperCase();};
+      code="FP-"+rnd()+"-"+rnd();
+    }
     setMyStats(function(x){return Object.assign({},x,{totalPts:x.totalPts-rew.cost});});
-    setRedeemed(function(prev){return [{name:rew.name,icon:rew.icon,cost:rew.cost,code:code,date:fmtDate(new Date())},...prev];});
+    setRedeemed(function(prev){return [{name:rew.name,icon:rew.icon,img:rew.img||"",cost:rew.cost,code:code,date:fmtDate(new Date())},...prev];});
     return code;
   }
 
