@@ -100,6 +100,10 @@ async function loadConfig(){
       if(cfg.charity.image_url)   CHARITY.img  = cfg.charity.image_url;
     }
     if(cfg.branding && cfg.branding.logo_url) BRANDING_LOGO = cfg.branding.logo_url;
+    if(cfg.join){
+      JOIN.fairplay = Number(cfg.join.fairplay_screen)===1 ? 1 : 0;
+      JOIN.regulationsUrl = cfg.join.regulations_url || "";
+    }
     if(Array.isArray(cfg.rewards) && cfg.rewards.length){
       REW = cfg.rewards.map(function(r,i){
         var sk = REW_SKINS[i % REW_SKINS.length];
@@ -280,6 +284,8 @@ let CHARITY = {
 };
 let BRANDING_LOGO = "";
 let INFO_PAGES = [];
+/* Ustawienia dołączania — nadpisywane konfiguracją z panelu. */
+let JOIN = { fairplay: 1, regulationsUrl: "" };
 /* Tygodniowe dane kroków: P W Ś C P S N (bieżący tydzień, N = dzisiaj) */
 const WEEK_LABELS = ["Pn","Wt","Śr","Cz","Pt","So","Nd"];
 const WEEK_STEPS_SEED = [9240, 11320, 7800, 12100, 8432, 0, 0];
@@ -3508,6 +3514,24 @@ function Onboarding(p){
               </div>
             </Card>
             <div style={{fontSize:12,color:T.grey,lineHeight:1.55,marginTop:14}}>Możesz przekazać własne punkty na pomoc zwierzętom. Gdy firma osiągnie cel, VanityStyle przekaże darowiznę. Wyzwanie znajdziesz w sekcji <b style={{color:T.text}}>Nagrody</b>.</div>
+
+            {JOIN.fairplay===1&&(
+              <Card style={{padding:"14px 16px",marginTop:14}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:6}}>
+                  <span style={{fontSize:18}}>🤝</span>
+                  <div style={{fontSize:13,fontWeight:800,color:T.text}}>Fair-play</div>
+                </div>
+                <div style={{fontSize:12,color:T.grey,lineHeight:1.55}}>
+                  Wyzwanie opiera się na uczciwej rywalizacji — dodawaj wyłącznie swoje rzeczywiste aktywności.
+                </div>
+                {JOIN.regulationsUrl&&(
+                  <a href={JOIN.regulationsUrl} target="_blank" rel="noreferrer"
+                    style={{display:"inline-block",marginTop:8,fontSize:12,fontWeight:700,color:T.navy,textDecoration:"none"}}>
+                    Przeczytaj pełny regulamin →
+                  </a>
+                )}
+              </Card>
+            )}
           </div>
         )}
 
