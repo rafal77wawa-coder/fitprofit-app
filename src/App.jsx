@@ -104,6 +104,19 @@ async function loadConfig(){
       JOIN.fairplay = Number(cfg.join.fairplay_screen)===1 ? 1 : 0;
       JOIN.regulationsUrl = cfg.join.regulations_url || "";
     }
+    if(Array.isArray(cfg.leaderboard) && cfg.leaderboard.length){
+      OTHERS = cfg.leaderboard.map(function(r,i){
+        var parts=String(r.name||"").trim().split(/\s+/);
+        var ini=(parts[0]?parts[0].charAt(0):"")+(parts[1]?parts[1].charAt(0):"");
+        return {
+          id: 1000+i,
+          name: r.name || "",
+          ava: ini.toUpperCase() || "?",
+          pts: Number(r.points)||0,
+          co: MY_CO,
+        };
+      });
+    }
     if(Array.isArray(cfg.rewards) && cfg.rewards.length){
       REW = cfg.rewards.map(function(r,i){
         var sk = REW_SKINS[i % REW_SKINS.length];
@@ -183,7 +196,8 @@ function coHash(id){ var s=String(id),h=0; for(var i=0;i<s.length;i++){ h=(h*31+
 function coLabel(id){ return id===MY_CO ? COS[id].name : coMask(id); }
 function coShort(id){ return id===MY_CO ? COS[id].name.split(" ")[0] : coMask(id); }
 function coDot(id){ return id===MY_CO ? T.navy : CO_PALETTE[coHash(id)%CO_PALETTE.length]; }
-const OTHERS = [
+/* Ranking — wartości domyślne; nadpisywane uczestnikami z panelu przez loadConfig(). */
+let OTHERS = [
   {id:1,name:"Anna W.",   ava:"AW",pts:4821,co:"techcorp"},
   {id:2,name:"Piotr M.",  ava:"PM",pts:4103,co:"buildco"},
   {id:4,name:"Julia S.",  ava:"JS",pts:3611,co:"medigroup"},
