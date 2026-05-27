@@ -3078,8 +3078,8 @@ function Settings(p){
     {
       title:"Konto",
       rows:[
-        {type:"link",icon:"👤",label:"Profil i dane",sub:"Marek Kowalski"},
-        {type:"link",icon:"🏢",label:"Firma",sub:"VanityStyle Sp. z o.o."},
+        {type:"link",icon:"👤",label:"Profil i dane",sub:(p.user&&(p.user.firstName+" "+p.user.lastName))||"—"},
+        {type:"link",icon:"🏢",label:"Firma",sub:(p.user&&p.user.company)||"VanityStyle Sp. z o.o."},
         {type:"link",icon:"🔒",label:"Prywatność i dane"},
         {type:"link",icon:"📋",label:"Regulamin i zasady"},
       ]
@@ -3261,7 +3261,12 @@ function Settings(p){
 /* ─── ROOT ───────────────────────────── */
 /* ─── ONBOARDING — wdrożenie nowego użytkownika ─── */
 function Onboarding(p){
-  var SYS={first:"Marek",last:"Kowalski",company:"VanityStyle"};
+  /* Dane konta z zalogowanego użytkownika; fallback gdy brak profilu. */
+  var SYS={
+    first: (p.user&&p.user.firstName) || "Uczestnik",
+    last:  (p.user&&p.user.lastName) || "",
+    company: (p.user&&p.user.company) || "VanityStyle",
+  };
   var LAST=5;
   var [step,setStep]=useState(0);
   var [nameMode,setNameMode]=useState("initial");
@@ -3845,6 +3850,17 @@ export default function App(){
     return "login";
   });
   var authTokenParam=urlParam("token");
+
+  /* Po zalogowaniu/rejestracji: podstawia realne dane konta z backendu.
+     Aktywności i statystyki pozostają demo do osobnego kroku. */
+  function applyUserProfile(u){
+    setAuthUser(u);
+    if(!u) return;
+    if(u.displayName) setDisplayName(u.displayName);
+    if(typeof u.points==="number"){
+      setMyStats(function(s){ return Object.assign({},s,{totalPts:u.points}); });
+    }
+  }
   var stepCreditRef=useRef(0);   /* ile pkt za kroki już naliczono dzisiaj (delta-credit) */
   /* Krokomierz: po osiągnięciu dziennego celu (STEP_GOAL) punkty za kroki
      naliczają się automatycznie do wyniku dzisiejszego i globalnego. */
@@ -4011,13 +4027,13 @@ export default function App(){
         {/* Uwierzytelnianie — logowanie / zaproszenie / reset hasła (overlay) */}
         {authView==="login"&&(
           <LoginScreen
-            onLoggedIn={function(u){ setAuthUser(u); if(u&&u.displayName) setDisplayName(u.displayName); setAuthView(null); }}
+            onLoggedIn={function(u){ applyUserProfile(u); setAuthView(null); }}
             onForgot={function(){ setAuthView("forgot"); }}
           />
         )}
         {authView==="invite"&&(
           <InviteScreen token={authTokenParam}
-            onRegistered={function(u){ setAuthUser(u); if(u&&u.displayName) setDisplayName(u.displayName); setAuthView(null); }}
+            onRegistered={function(u){ applyUserProfile(u); setAuthView(null); }}
             onGoLogin={function(){ setAuthView("login"); }}
           />
         )}
@@ -4029,7 +4045,7 @@ export default function App(){
         )}
 
         {/* Onboarding — wdrożenie nowego użytkownika (overlay) */}
-        {!authView&&!onboarded&&<Onboarding onFinish={function(cfg){setDisplayName(cfg.displayName);setReminder(cfg.reminder);setOnboarded(true);}}/>}
+        {!authView&&!onboarded&&<Onboarding user={authUser} onFinish={function(cfg){setDisplayName(cfg.displayName);setReminder(cfg.reminder);setOnboarded(true);}}/>}
 
         {/* Toast */}
         <div style={{position:"absolute",top:48,left:0,right:0,zIndex:400,padding:"0 0",pointerEvents:"none"}}>
@@ -4067,7 +4083,7 @@ export default function App(){
             {tab==="rank"    &&<Ranking myPts={myStats.totalPts} scrollY={homeScrollY} displayName={displayName} displayInitials={displayInitials}/>}
             {tab==="feed"    &&<Feed feed={feed} scrollY={homeScrollY} displayName={displayName} displayInitials={displayInitials}/>}
             {tab==="nagrody" &&<Nagrody myPts={myStats.totalPts} challPts={challPts} redeemed={redeemed} onRedeem={handleRedeem} onPickReward={setRedeemReward} onOpenDonate={function(){setDonateOpen(true);}} scrollY={homeScrollY}/>}
-            {tab==="settings"&&<Settings reminder={reminder} setReminder={setReminder} onTestReminder={function(){setReminderBanner(true);go("home");}} onNavigate={function(id){if(id==="regulamin")setRegulaminOpen(true);}}/>}
+            {tab==="settings"&&<Settings user={authUser} reminder={reminder} setReminder={setReminder} onTestReminder={function(){setReminderBanner(true);go("home");}} onNavigate={function(id){if(id==="regulamin")setRegulaminOpen(true);}}/>}
           </div>
         </div>
 
