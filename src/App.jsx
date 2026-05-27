@@ -3559,6 +3559,233 @@ function Onboarding(p){
   );
 }
 
+/* ════════════════ UWIERZYTELNIANIE ════════════════
+   Konta użytkowników: zaproszenie → rejestracja (hasło) → logowanie.
+   Token sesji trzymany w pamięci; profil pobierany z backendu. */
+
+function authToken(){ try { return window.__fpToken || ""; } catch(e){ return ""; } }
+function setAuthToken(t){ try { window.__fpToken = t || ""; } catch(e){} }
+
+function urlParam(name){
+  try {
+    var m = new RegExp("[?&]"+name+"=([^&]+)").exec(window.location.search);
+    return m ? decodeURIComponent(m[1]) : "";
+  } catch(e){ return ""; }
+}
+function urlPath(){
+  try { return window.location.pathname || "/"; } catch(e){ return "/"; }
+}
+
+async function apiPost(path, body){
+  var res = await fetch(API_BASE + path, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", Authorization:"Bearer "+authToken() },
+    body: JSON.stringify(body||{}),
+  });
+  var data = {};
+  try { data = await res.json(); } catch(e){}
+  return { status: res.status, data: data };
+}
+async function apiGet(path){
+  var res = await fetch(API_BASE + path, { headers:{ Authorization:"Bearer "+authToken() } });
+  var data = {};
+  try { data = await res.json(); } catch(e){}
+  return { status: res.status, data: data };
+}
+
+/* Wspólna ramka ekranów uwierzytelniania. */
+function AuthShell(p){
+  return (
+    <div style={{position:"absolute",inset:0,background:T.bg,zIndex:600,display:"flex",flexDirection:"column",overflowY:"auto"}}>
+      <div style={{background:T.navy,padding:"54px 26px 30px",flexShrink:0}}>
+        <div style={{fontSize:13,fontWeight:700,color:"rgba(255,255,255,0.6)",letterSpacing:1}}>FITPROFIT</div>
+        <div style={{fontSize:24,fontWeight:800,color:"#fff",marginTop:6,letterSpacing:-0.4}}>{p.title}</div>
+        {p.sub&&<div style={{fontSize:13,color:"rgba(255,255,255,0.75)",marginTop:6,lineHeight:1.5}}>{p.sub}</div>}
+      </div>
+      <div style={{flex:1,padding:"22px 26px 32px"}}>{p.children}</div>
+    </div>
+  );
+}
+
+function AuthField(p){
+  return (
+    <label style={{display:"block",marginBottom:14}}>
+      <span style={{display:"block",fontSize:12,fontWeight:600,color:T.grey,marginBottom:6}}>{p.label}</span>
+      <input
+        type={p.type||"text"} value={p.value} placeholder={p.placeholder||""}
+        onChange={function(e){p.onChange(e.target.value);}}
+        onKeyDown={function(e){ if(e.key==="Enter"&&p.onEnter) p.onEnter(); }}
+        style={{width:"100%",padding:"11px 13px",borderRadius:11,border:"1.5px solid "+T.border,
+          fontSize:15,color:T.text,outline:"none",boxSizing:"border-box",background:"#fff"}}
+      />
+    </label>
+  );
+}
+
+/* Ekran logowania — brama do aplikacji. */
+function LoginScreen(p){
+  var [email,setEmail]=useState("");
+  var [pass,setPass]=useState("");
+  var [busy,setBusy]=useState(false);
+  var [err,setErr]=useState("");
+
+  async function submit(){
+    if(!email.trim()||!pass){ setErr("Podaj e-mail i hasło."); return; }
+    setBusy(true); setErr("");
+    var r=await apiPost("/api/app/login",{email:email.trim(),password:pass});
+    setBusy(false);
+    if(r.status===200&&r.data.token){
+      setAuthToken(r.data.token);
+      p.onLoggedIn(r.data.user);
+    } else {
+      setErr(r.data.error||"Nie udało się zalogować.");
+    }
+  }
+
+  return (
+    <AuthShell title="Zaloguj się" sub="Wejdź na swoje konto, aby kontynuować wyzwanie.">
+      <AuthField label="E-mail" type="email" value={email} onChange={setEmail} placeholder="twój@email.pl"/>
+      <AuthField label="Hasło" type="password" value={pass} onChange={setPass} onEnter={submit} placeholder="••••••••"/>
+      {err&&<div style={{fontSize:12,color:T.red,fontWeight:600,marginBottom:12}}>{err}</div>}
+      <PrimaryBtn dark onClick={submit}>{busy?"Logowanie…":"Zaloguj się"}</PrimaryBtn>
+      <button onClick={p.onForgot}
+        style={{display:"block",margin:"16px auto 0",background:"none",border:"none",
+          fontSize:13,fontWeight:600,color:T.navy,cursor:"pointer",fontFamily:"inherit"}}>
+        Nie pamiętam hasła
+      </button>
+    </AuthShell>
+  );
+}
+
+/* Ekran zaproszenia — rejestracja konta przez token z e-maila. */
+function InviteScreen(p){
+  var [stage,setStage]=useState("loading");   // loading | form | error
+  var [info,setInfo]=useState(null);
+  var [pass,setPass]=useState("");
+  var [pass2,setPass2]=useState("");
+  var [busy,setBusy]=useState(false);
+  var [err,setErr]=useState("");
+
+  useEffect(function(){
+    apiGet("/api/app/invite/"+p.token).then(function(r){
+      if(r.status===200){ setInfo(r.data); setStage("form"); }
+      else { setErr(r.data.message||r.data.error||"Zaproszenie nieprawidłowe."); setStage("error"); }
+    });
+  }, []);
+
+  async function submit(){
+    if(pass.length<8){ setErr("Hasło musi mieć co najmniej 8 znaków."); return; }
+    if(pass!==pass2){ setErr("Hasła nie są takie same."); return; }
+    setBusy(true); setErr("");
+    var r=await apiPost("/api/app/register",{token:p.token,password:pass});
+    setBusy(false);
+    if(r.status===200&&r.data.token){
+      setAuthToken(r.data.token);
+      p.onRegistered(r.data.user);
+    } else {
+      setErr(r.data.error||"Nie udało się utworzyć konta.");
+    }
+  }
+
+  if(stage==="loading"){
+    return <AuthShell title="Zaproszenie"><div style={{color:T.grey,fontSize:14}}>Sprawdzanie zaproszenia…</div></AuthShell>;
+  }
+  if(stage==="error"){
+    return (
+      <AuthShell title="Zaproszenie">
+        <div style={{fontSize:14,color:T.red,fontWeight:600,marginBottom:16}}>{err}</div>
+        <PrimaryBtn dark onClick={p.onGoLogin}>Przejdź do logowania</PrimaryBtn>
+      </AuthShell>
+    );
+  }
+  return (
+    <AuthShell title={"Cześć "+(info.firstName||"")+"!"}
+      sub="Zostałeś zaproszony do firmowego wyzwania. Ustaw hasło, aby założyć konto.">
+      <div style={{fontSize:13,color:T.grey,marginBottom:14}}>Konto: <b style={{color:T.text}}>{info.email}</b></div>
+      <AuthField label="Hasło (min. 8 znaków)" type="password" value={pass} onChange={setPass} placeholder="••••••••"/>
+      <AuthField label="Powtórz hasło" type="password" value={pass2} onChange={setPass2} onEnter={submit} placeholder="••••••••"/>
+      {err&&<div style={{fontSize:12,color:T.red,fontWeight:600,marginBottom:12}}>{err}</div>}
+      <PrimaryBtn dark onClick={submit}>{busy?"Tworzenie konta…":"Załóż konto i zacznij"}</PrimaryBtn>
+    </AuthShell>
+  );
+}
+
+/* Ekran „nie pamiętam hasła" — wysyła link resetu. */
+function ForgotScreen(p){
+  var [email,setEmail]=useState("");
+  var [busy,setBusy]=useState(false);
+  var [done,setDone]=useState(false);
+
+  async function submit(){
+    if(!email.trim()) return;
+    setBusy(true);
+    await apiPost("/api/app/forgot",{email:email.trim()});
+    setBusy(false); setDone(true);
+  }
+
+  return (
+    <AuthShell title="Reset hasła" sub="Podaj e-mail konta — wyślemy link do ustawienia nowego hasła.">
+      {done?(
+        <div>
+          <div style={{fontSize:14,color:T.text,lineHeight:1.6,marginBottom:18}}>
+            Jeśli konto istnieje, wysłaliśmy wiadomość z linkiem do resetu hasła. Sprawdź skrzynkę.
+          </div>
+          <PrimaryBtn dark onClick={p.onGoLogin}>Wróć do logowania</PrimaryBtn>
+        </div>
+      ):(
+        <div>
+          <AuthField label="E-mail" type="email" value={email} onChange={setEmail} onEnter={submit} placeholder="twój@email.pl"/>
+          <PrimaryBtn dark onClick={submit}>{busy?"Wysyłanie…":"Wyślij link resetu"}</PrimaryBtn>
+          <button onClick={p.onGoLogin}
+            style={{display:"block",margin:"16px auto 0",background:"none",border:"none",
+              fontSize:13,fontWeight:600,color:T.navy,cursor:"pointer",fontFamily:"inherit"}}>
+            Wróć do logowania
+          </button>
+        </div>
+      )}
+    </AuthShell>
+  );
+}
+
+/* Ekran ustawienia nowego hasła — z linku resetu. */
+function ResetScreen(p){
+  var [pass,setPass]=useState("");
+  var [pass2,setPass2]=useState("");
+  var [busy,setBusy]=useState(false);
+  var [err,setErr]=useState("");
+  var [done,setDone]=useState(false);
+
+  async function submit(){
+    if(pass.length<8){ setErr("Hasło musi mieć co najmniej 8 znaków."); return; }
+    if(pass!==pass2){ setErr("Hasła nie są takie same."); return; }
+    setBusy(true); setErr("");
+    var r=await apiPost("/api/app/reset",{token:p.token,password:pass});
+    setBusy(false);
+    if(r.status===200){ setDone(true); }
+    else { setErr(r.data.error||"Nie udało się zmienić hasła."); }
+  }
+
+  return (
+    <AuthShell title="Nowe hasło" sub={done?"":"Ustaw nowe hasło do swojego konta."}>
+      {done?(
+        <div>
+          <div style={{fontSize:14,color:T.text,lineHeight:1.6,marginBottom:18}}>
+            Hasło zostało zmienione. Możesz się teraz zalogować.
+          </div>
+          <PrimaryBtn dark onClick={p.onGoLogin}>Przejdź do logowania</PrimaryBtn>
+        </div>
+      ):(
+        <div>
+          <AuthField label="Nowe hasło (min. 8 znaków)" type="password" value={pass} onChange={setPass} placeholder="••••••••"/>
+          <AuthField label="Powtórz hasło" type="password" value={pass2} onChange={setPass2} onEnter={submit} placeholder="••••••••"/>
+          {err&&<div style={{fontSize:12,color:T.red,fontWeight:600,marginBottom:12}}>{err}</div>}
+          <PrimaryBtn dark onClick={submit}>{busy?"Zapisywanie…":"Ustaw nowe hasło"}</PrimaryBtn>
+        </div>
+      )}
+    </AuthShell>
+  );
+}
+
 export default function App(){
   var [tab,setTab]=useState("home");
   var [key,setKey]=useState(0);
@@ -3606,6 +3833,18 @@ export default function App(){
   useEffect(function(){
     loadConfig().then(function(){ setCfgReady(true); });
   }, []);
+
+  /* ── UWIERZYTELNIANIE ──
+     authView określa ekran logowania: 'login' | 'invite' | 'forgot' | 'reset' | null (zalogowany).
+     Trasa z linku w mailu (/zaproszenie, /reset) ustala ekran startowy. */
+  var [authUser,setAuthUser]=useState(null);
+  var [authView,setAuthView]=useState(function(){
+    var path=urlPath();
+    if(path.indexOf("/zaproszenie")===0) return "invite";
+    if(path.indexOf("/reset")===0) return "reset";
+    return "login";
+  });
+  var authTokenParam=urlParam("token");
   var stepCreditRef=useRef(0);   /* ile pkt za kroki już naliczono dzisiaj (delta-credit) */
   /* Krokomierz: po osiągnięciu dziennego celu (STEP_GOAL) punkty za kroki
      naliczają się automatycznie do wyniku dzisiejszego i globalnego. */
@@ -3769,8 +4008,28 @@ export default function App(){
       {/* Phone frame */}
       <div style={{width:375,height:812,background:T.bg,borderRadius:48,border:"1px solid #C0C0C0",boxShadow:"0 0 0 8px #E0E0E0, 0 0 0 9px #D0D0D0, 0 48px 120px rgba(0,0,0,0.2)",overflow:"hidden",display:"flex",flexDirection:"column",position:"relative"}}>
 
+        {/* Uwierzytelnianie — logowanie / zaproszenie / reset hasła (overlay) */}
+        {authView==="login"&&(
+          <LoginScreen
+            onLoggedIn={function(u){ setAuthUser(u); if(u&&u.displayName) setDisplayName(u.displayName); setAuthView(null); }}
+            onForgot={function(){ setAuthView("forgot"); }}
+          />
+        )}
+        {authView==="invite"&&(
+          <InviteScreen token={authTokenParam}
+            onRegistered={function(u){ setAuthUser(u); if(u&&u.displayName) setDisplayName(u.displayName); setAuthView(null); }}
+            onGoLogin={function(){ setAuthView("login"); }}
+          />
+        )}
+        {authView==="forgot"&&(
+          <ForgotScreen onGoLogin={function(){ setAuthView("login"); }}/>
+        )}
+        {authView==="reset"&&(
+          <ResetScreen token={authTokenParam} onGoLogin={function(){ setAuthView("login"); }}/>
+        )}
+
         {/* Onboarding — wdrożenie nowego użytkownika (overlay) */}
-        {!onboarded&&<Onboarding onFinish={function(cfg){setDisplayName(cfg.displayName);setReminder(cfg.reminder);setOnboarded(true);}}/>}
+        {!authView&&!onboarded&&<Onboarding onFinish={function(cfg){setDisplayName(cfg.displayName);setReminder(cfg.reminder);setOnboarded(true);}}/>}
 
         {/* Toast */}
         <div style={{position:"absolute",top:48,left:0,right:0,zIndex:400,padding:"0 0",pointerEvents:"none"}}>
